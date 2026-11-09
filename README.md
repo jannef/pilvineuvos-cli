@@ -32,7 +32,8 @@ source <(COMPLETE=zsh pnmail)
 source <(COMPLETE=bash pnmail)
 ```
 
-ID completion uses the current inbox (`pnmail use` / `PILVINEUVOS_INBOX`) and your saved API key.
+ID completion uses the inbox from `-i/--inbox` if you've typed it, otherwise the current inbox
+(`pnmail use` / `PILVINEUVOS_INBOX`), and your saved API key.
 If the API can't be reached within a second, only commands and options are completed.
 
 ## Usage

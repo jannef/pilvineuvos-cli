@@ -399,16 +399,20 @@ fn run(cli: Cli) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Message IDs in the current inbox for shell completion, newest first, with
-/// subject and age as the description. Returns nothing on any error so a
-/// missing key or network problem never breaks the shell.
+/// Message IDs for shell completion, newest first, with subject and age as the
+/// description. Honors `-i/--inbox`, `--api` and `--api-key` already typed on
+/// the command line. Returns nothing on any error so a missing key or network
+/// problem never breaks the shell.
 fn message_id_candidates() -> Vec<CompletionCandidate> {
-    let Ok(inbox) = state::resolve_inbox(None) else {
+    let line = completion_line(std::env::args());
+    let Ok(inbox) = state::resolve_inbox(flag_value(&line, Some('i'), "inbox").as_deref()) else {
         return Vec::new();
     };
-    let base = std::env::var("PILVINEUVOS_API").unwrap_or_else(|_| api::DEFAULT_API.to_string());
-    let key = std::env::var("PILVINEUVOS_API_KEY")
-        .ok()
+    let base = flag_value(&line, None, "api")
+        .or_else(|| std::env::var("PILVINEUVOS_API").ok())
+        .unwrap_or_else(|| api::DEFAULT_API.to_string());
+    let key = flag_value(&line, None, "api-key")
+        .or_else(|| std::env::var("PILVINEUVOS_API_KEY").ok())
         .filter(|k| !k.trim().is_empty())
         .or_else(state::load_api_key);
     let Ok(client) = Client::with_timeout(&base, key, Duration::from_secs(1)) else {
@@ -428,6 +432,40 @@ fn message_id_candidates() -> Vec<CompletionCandidate> {
                 .display_order(Some(i))
         })
         .collect()
+}
+
+/// The words the user has typed when the shell asks for completions
+/// (`pnmail -- pnmail read -i foo <current>`), without the word being completed.
+fn completion_line(args: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut line: Vec<String> = args.into_iter().skip_while(|a| a != "--").skip(1).collect();
+    line.pop();
+    line
+}
+
+/// Last value given for a flag, in any of the forms `-i x`, `-ix`, `--inbox x`, `--inbox=x`.
+fn flag_value(line: &[String], short: Option<char>, long: &str) -> Option<String> {
+    let long_flag = format!("--{long}");
+    let long_eq = format!("--{long}=");
+    let short_flag = short.map(|c| format!("-{c}"));
+    let mut found = None;
+    let mut words = line.iter();
+    while let Some(w) = words.next() {
+        if w == "--" {
+            break;
+        }
+        if *w == long_flag || short_flag.as_ref() == Some(w) {
+            found = words.next().cloned();
+        } else if let Some(v) = w.strip_prefix(&long_eq) {
+            found = Some(v.to_string());
+        } else if let Some(v) = short_flag
+            .as_ref()
+            .and_then(|f| w.strip_prefix(f.as_str()))
+            .filter(|v| !v.is_empty() && !w.starts_with("--"))
+        {
+            found = Some(v.to_string());
+        }
+    }
+    found
 }
 
 /// Explicit ID, or the newest message in the resolved inbox.
@@ -631,6 +669,30 @@ mod tests {
         assert_eq!(sanitize("../../etc/passwd"), "_.._etc_passwd");
         assert_eq!(sanitize("report 2026.pdf"), "report 2026.pdf");
         assert_eq!(sanitize(".."), "attachment");
+    }
+
+    #[test]
+    fn reads_flags_from_completion_line() {
+        let args = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
+        let line = completion_line(args("/bin/pnmail -- pnmail read -i foo 01"));
+        assert_eq!(line, args("pnmail read -i foo"));
+        assert_eq!(
+            flag_value(&line, Some('i'), "inbox").as_deref(),
+            Some("foo")
+        );
+
+        for typed in ["--inbox foo", "--inbox=foo", "-ifoo", "-i bar --inbox foo"] {
+            let line = completion_line(args(&format!("pnmail -- pnmail code {typed} x")));
+            assert_eq!(
+                flag_value(&line, Some('i'), "inbox").as_deref(),
+                Some("foo"),
+                "{typed}"
+            );
+        }
+        let line = completion_line(args("pnmail -- pnmail --api-key k read x"));
+        assert_eq!(flag_value(&line, None, "api-key").as_deref(), Some("k"));
+        assert_eq!(flag_value(&line, None, "api"), None);
+        assert_eq!(flag_value(&line, Some('i'), "inbox"), None);
     }
 
     #[test]

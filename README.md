@@ -9,6 +9,15 @@ Command-line client for the throwaway inboxes at `<name>@pilvineuvos.com`
 cargo install --git https://github.com/jannef/pilvineuvos-cli
 ```
 
+## API key
+
+The API needs a key. Save it once (you'll be prompted, so it stays out of your shell history):
+
+```sh
+pnmail login                # paste the key; it is checked against the API before saving
+pnmail logout               # forget it
+```
+
 ## Usage
 
 ```sh
@@ -46,12 +55,13 @@ CODE=$(pnmail wait --code --timeout 2m)
 
 | Variable | Purpose |
 |---|---|
+| `PILVINEUVOS_API_KEY` | API key (overrides the key saved by `pnmail login`) |
 | `PILVINEUVOS_INBOX` | Inbox to use when none is given (overrides the saved current inbox) |
 | `PILVINEUVOS_API` | API base URL (default `https://inbox.pilvineuvos.com`) |
 | `NO_COLOR` | Disable colored output |
 
-The current inbox is stored in your config dir (`~/Library/Application Support/pilvineuvos/current` on macOS,
-`~/.config/pilvineuvos/current` on Linux).
+The current inbox and API key are stored in your config dir (`~/Library/Application Support/pilvineuvos/` on macOS,
+`~/.config/pilvineuvos/` on Linux). The key file is readable only by you.
 
 ## Server side
 

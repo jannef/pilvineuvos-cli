@@ -1,5 +1,32 @@
+// Accepts `Authorization: Bearer <key>` where <key> is a row in api_keys.
+async function isAuthorized(request, env) {
+  const header = request.headers.get("Authorization") ?? "";
+  const match = header.match(/^Bearer\s+(\S+)$/i);
+
+  if (!match) {
+    return false;
+  }
+
+  const row = await env.D1_INDEX.prepare(`
+    SELECT 1
+    FROM api_keys
+    WHERE key = ?
+  `)
+    .bind(match[1].toLowerCase())
+    .first();
+
+  return row !== null;
+}
+
 export default {
   async fetch(request, env, ctx) {
+    if (!(await isAuthorized(request, env))) {
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: { "WWW-Authenticate": 'Bearer realm="pilvineuvos"' },
+      });
+    }
+
     const url = new URL(request.url);
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
 

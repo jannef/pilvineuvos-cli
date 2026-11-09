@@ -1,5 +1,6 @@
 use std::fs;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
@@ -19,8 +20,16 @@ pub fn normalize_inbox(input: &str) -> Result<String> {
     Ok(name.to_string())
 }
 
+fn config_path(name: &str) -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join("pilvineuvos").join(name))
+}
+
 fn state_file() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("pilvineuvos").join("current"))
+    config_path("current")
+}
+
+fn api_key_file() -> Option<PathBuf> {
+    config_path("api_key")
 }
 
 pub fn load_current() -> Option<String> {
@@ -31,10 +40,53 @@ pub fn load_current() -> Option<String> {
 
 pub fn save_current(inbox: &str) -> Result<()> {
     let path = state_file().context("could not determine config directory")?;
+    write_private(&path, &format!("{inbox}\n"))
+}
+
+pub fn load_api_key() -> Option<String> {
+    let s = fs::read_to_string(api_key_file()?).ok()?;
+    let s = s.trim();
+    (!s.is_empty()).then(|| s.to_string())
+}
+
+pub fn save_api_key(key: &str) -> Result<PathBuf> {
+    let path = api_key_file().context("could not determine config directory")?;
+    write_private(&path, &format!("{key}\n"))?;
+    Ok(path)
+}
+
+/// Removes the saved key; returns whether one existed.
+pub fn delete_api_key() -> Result<bool> {
+    let Some(path) = api_key_file() else {
+        return Ok(false);
+    };
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e).with_context(|| format!("failed to remove {}", path.display())),
+    }
+}
+
+/// Writes a file readable only by the current user.
+fn write_private(path: &Path, contents: &str) -> Result<()> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
     }
-    fs::write(&path, format!("{inbox}\n"))
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        opts.mode(0o600);
+        if path.exists() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+                .with_context(|| format!("failed to set permissions on {}", path.display()))?;
+        }
+    }
+    let mut file = opts
+        .open(path)
+        .with_context(|| format!("failed to write {}", path.display()))?;
+    file.write_all(contents.as_bytes())
         .with_context(|| format!("failed to write {}", path.display()))
 }
 

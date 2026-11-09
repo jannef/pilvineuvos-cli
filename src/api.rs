@@ -19,13 +19,26 @@ pub struct Summary {
     pub received_at: i64,
 }
 
+/// The API rejected the request's key (HTTP 401).
+#[derive(Debug)]
+pub struct Unauthorized;
+
+impl std::fmt::Display for Unauthorized {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("API key missing or invalid; run `pnmail login` or set PILVINEUVOS_API_KEY")
+    }
+}
+
+impl std::error::Error for Unauthorized {}
+
 pub struct Client {
     http: reqwest::blocking::Client,
     base: String,
+    api_key: Option<String>,
 }
 
 impl Client {
-    pub fn new(base: &str) -> Result<Self> {
+    pub fn new(base: &str, api_key: Option<String>) -> Result<Self> {
         let http = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent(concat!("pnmail/", env!("CARGO_PKG_VERSION")))
@@ -34,6 +47,7 @@ impl Client {
         Ok(Self {
             http,
             base: base.trim_end_matches('/').to_string(),
+            api_key,
         })
     }
 
@@ -64,10 +78,17 @@ impl Client {
     }
 
     fn get(&self, url: &str) -> Result<reqwest::blocking::Response> {
-        self.http
-            .get(url)
+        let mut req = self.http.get(url);
+        if let Some(key) = &self.api_key {
+            req = req.bearer_auth(key);
+        }
+        let resp = req
             .send()
-            .with_context(|| format!("request to {url} failed"))
+            .with_context(|| format!("request to {url} failed"))?;
+        if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(Unauthorized.into());
+        }
+        Ok(resp)
     }
 }
 

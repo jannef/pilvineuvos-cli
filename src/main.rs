@@ -32,6 +32,15 @@ struct Cli {
     #[arg(long, global = true, env = "PILVINEUVOS_API", default_value = api::DEFAULT_API)]
     api: String,
 
+    /// API key [default: the key saved by `pnmail login`]
+    #[arg(
+        long,
+        global = true,
+        env = "PILVINEUVOS_API_KEY",
+        hide_env_values = true
+    )]
+    api_key: Option<String>,
+
     /// Machine-readable JSON output
     #[arg(long, global = true)]
     json: bool,
@@ -42,6 +51,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Save an API key (prompts for it if not given, which keeps it out of shell history)
+    Login { key: Option<String> },
+    /// Remove the saved API key
+    Logout,
     /// Create a random inbox and make it the current one
     New {
         /// Use `<PREFIX>-xxxxxx` instead of a random word pair
@@ -154,9 +167,45 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode> {
     let json = cli.json;
-    let client = || Client::new(&cli.api);
+    let api_key = cli.api_key.clone().or_else(state::load_api_key);
+    let client = || Client::new(&cli.api, api_key.clone());
 
     match cli.cmd {
+        Cmd::Login { key } => {
+            let key = match key {
+                Some(k) => k,
+                None => read_key()?,
+            };
+            let key = key.trim().to_lowercase();
+            if key.is_empty() {
+                bail!("API key must not be empty");
+            }
+            // Any inbox works for checking the key; an empty list means it was accepted.
+            match Client::new(&cli.api, Some(key.clone()))?.list("pnmail-key-check") {
+                Err(e) if e.is::<api::Unauthorized>() => bail!("the API rejected this key"),
+                result => result?,
+            };
+            let path = state::save_api_key(&key)?;
+            if json {
+                print_json(&json!({ "saved": path }))?;
+            } else {
+                println!(
+                    "{} API key saved to {}",
+                    render::success("ok"),
+                    path.display()
+                );
+            }
+        }
+        Cmd::Logout => {
+            let removed = state::delete_api_key()?;
+            if json {
+                print_json(&json!({ "removed": removed }))?;
+            } else if removed {
+                println!("API key removed");
+            } else {
+                println!("No saved API key");
+            }
+        }
         Cmd::New { prefix, no_save } => {
             let inbox = state::random_inbox(prefix.as_deref());
             if !no_save {
@@ -303,6 +352,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
                 sleep(poll.interval);
                 let rows = match client.list(&inbox) {
                     Ok(rows) => rows,
+                    Err(e) if e.is::<api::Unauthorized>() => return Err(e),
                     Err(e) => {
                         eprintln!("{} {e:#}", render::red("warning:"));
                         continue;
@@ -385,6 +435,7 @@ fn wait_for(
         first = false;
         let rows = match client.list(inbox) {
             Ok(rows) => rows,
+            Err(e) if e.is::<api::Unauthorized>() => return Err(e),
             Err(e) => {
                 eprintln!("{} {e:#}", render::red("warning:"));
                 continue;
@@ -430,6 +481,18 @@ fn print_link(p: &Parsed, json: bool) -> Result<()> {
         }
         None => bail!("no links found in message {}", p.id),
     }
+}
+
+fn read_key() -> Result<String> {
+    if std::io::stdin().is_terminal() {
+        eprint!("API key: ");
+        std::io::stderr().flush()?;
+    }
+    let mut key = String::new();
+    std::io::stdin()
+        .read_line(&mut key)
+        .context("failed to read API key from stdin")?;
+    Ok(key)
 }
 
 fn print_inbox(inbox: &str, json: bool) {

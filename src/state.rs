@@ -10,14 +10,15 @@ pub fn address(inbox: &str) -> String {
     format!("{inbox}@{DOMAIN}")
 }
 
-/// Accepts `name` or `name@domain` and returns the inbox name.
+/// Accepts `name` or `name@domain` and returns the inbox name, lowercased to
+/// match how the email worker stores it.
 pub fn normalize_inbox(input: &str) -> Result<String> {
     let name = input.trim();
     let name = name.split_once('@').map_or(name, |(local, _)| local);
     if name.is_empty() {
         bail!("inbox name must not be empty");
     }
-    Ok(name.to_string())
+    Ok(name.to_lowercase())
 }
 
 fn config_path(name: &str) -> Option<PathBuf> {
@@ -101,7 +102,7 @@ pub fn resolve_inbox(arg: Option<&str>) -> Result<String> {
         return normalize_inbox(&env);
     }
     match load_current() {
-        Some(c) => Ok(c),
+        Some(c) => normalize_inbox(&c),
         None => bail!(
             "no inbox given; pass one, set PILVINEUVOS_INBOX, or run `pnmail new` / `pnmail use <inbox>`"
         ),
@@ -144,7 +145,7 @@ pub fn random_inbox(prefix: Option<&str>) -> String {
             let suffix: String = (0..6)
                 .map(|_| CHARS[next(CHARS.len() as u64)] as char)
                 .collect();
-            format!("{p}-{suffix}")
+            format!("{p}-{suffix}").to_lowercase()
         }
         None => format!(
             "{}-{}-{:04}",
@@ -163,6 +164,8 @@ mod tests {
     fn normalizes_inbox_names() {
         assert_eq!(normalize_inbox("foo").unwrap(), "foo");
         assert_eq!(normalize_inbox(" foo@pilvineuvos.com ").unwrap(), "foo");
+        assert_eq!(normalize_inbox("Testi@PilviNeuvos.com").unwrap(), "testi");
+        assert_eq!(normalize_inbox("ÄÖ-Box").unwrap(), "äö-box");
         assert!(normalize_inbox("@pilvineuvos.com").is_err());
     }
 
@@ -170,6 +173,7 @@ mod tests {
     fn random_names_have_expected_shape() {
         assert_eq!(random_inbox(None).split('-').count(), 3);
         let p = random_inbox(Some("test"));
+        assert!(random_inbox(Some("CI")).starts_with("ci-"));
         assert!(p.starts_with("test-") && p.len() == "test-".len() + 6);
     }
 }

@@ -7,7 +7,7 @@ export default {
     const id = crypto.randomUUID();
     const receivedAt = Date.now();
     const expiresAt = receivedAt + 24 * 60 * 60 * 1000;
-    const inbox = message.to.slice(0, message.to.lastIndexOf("@"));
+    const inbox = message.to.slice(0, message.to.lastIndexOf("@")).toLowerCase();
     const objectKey = `messages/${id}.eml`;
 
     const raw = await new Response(message.raw).arrayBuffer();

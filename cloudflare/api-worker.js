@@ -34,7 +34,7 @@ export default {
     const inboxMatch = url.pathname.match(/^\/api\/inboxes\/([^/]+)$/);
 
     if (inboxMatch) {
-      const inbox = decodeURIComponent(inboxMatch[1]);
+      const inbox = decodeURIComponent(inboxMatch[1]).toLowerCase();
 
       const { results } = await env.D1_INDEX.prepare(`
         SELECT id, sender, subject, received_at

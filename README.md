@@ -52,3 +52,7 @@ CODE=$(pnmail wait --code --timeout 2m)
 
 The current inbox is stored in your config dir (`~/Library/Application Support/pilvineuvos/current` on macOS,
 `~/.config/pilvineuvos/current` on Linux).
+
+## Server side
+
+The Cloudflare Worker scripts live in [`cloudflare/`](cloudflare/).

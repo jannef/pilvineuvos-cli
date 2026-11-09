@@ -44,7 +44,7 @@ pnmail new --prefix signup  # signup-x7k2qp@pilvineuvos.com
 pnmail use foo              # switch current inbox (foo or foo@pilvineuvos.com)
 pnmail whoami               # show current address
 
-pnmail ls [INBOX]           # list messages (age, expiry, sender, subject)
+pnmail ls [INBOX]           # list messages (age, expiry, sender, subject); -i/--inbox works too
 pnmail read [ID]            # newest message if no ID; --html, --headers, --raw
 pnmail save [ID] -o mail.eml --attachments ./files
 
@@ -59,15 +59,27 @@ pnmail links [ID]           # extract all links
 
 Add `--json` to any command for machine-readable output.
 
+Every command that works on an inbox takes `-i/--inbox`, so scripts don't have to depend on the current inbox.
+
 ### Scripting example
 
 ```sh
-EMAIL=$(pnmail new --json | jq -r .address)
-./signup.sh "$EMAIL"
-CODE=$(pnmail wait --code --timeout 2m)
+INBOX=$(pnmail new --no-save --json | jq -r .inbox)   # --no-save: parallel runs don't clobber each other
+./signup.sh "$INBOX@pilvineuvos.com"
+CODE=$(pnmail wait -i "$INBOX" --since 1m --code --timeout 2m)
 ```
 
 `pnmail wait --since 1m` also accepts mail that arrived shortly before you started waiting.
+With `--code` or `--link`, stdout holds only the code or link; status messages go to stderr.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Error (API, network, no code/link found in the message, …) |
+| 2 | `wait` timed out |
+| 64 | Invalid command-line arguments |
 
 ## Configuration
 

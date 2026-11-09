@@ -27,7 +27,20 @@ use message::Parsed;
     name = "pnmail",
     version,
     about = "Throwaway inboxes at <name>@pilvineuvos.com",
-    after_help = "Messages are kept for ~23-24 hours.\n\nExamples:\n  pnmail new              create a random inbox and make it current\n  pnmail wait --code      block until mail arrives, print the one-time code\n  pnmail ls               list messages in the current inbox\n  pnmail read             show the newest message"
+    after_help = "Messages are kept for ~23-24 hours.
+
+Examples:
+  pnmail new              create a random inbox and make it current
+  pnmail wait --code      block until mail arrives, print the one-time code
+  pnmail ls               list messages in the current inbox
+  pnmail read             show the newest message
+
+Signup verification (no shared state, safe to run in parallel):
+  INBOX=$(pnmail new --no-save --json | jq -r .inbox)
+  # sign up as $INBOX@pilvineuvos.com, then:
+  pnmail wait -i \"$INBOX\" --since 1m --code     # or --link
+
+Exit codes: 0 success, 1 error, 2 `wait` timed out, 64 invalid arguments"
 )]
 struct Cli {
     /// API base URL
@@ -72,7 +85,10 @@ enum Cmd {
     Whoami,
     /// List messages in an inbox
     #[command(visible_alias = "list")]
-    Ls { inbox: Option<String> },
+    Ls {
+        #[command(flatten)]
+        inbox: InboxArg,
+    },
     /// Show a message (newest in the inbox if no ID is given)
     Read {
         #[command(flatten)]
@@ -100,7 +116,8 @@ enum Cmd {
     },
     /// Wait for a new message to arrive (exit code 2 on timeout)
     Wait {
-        inbox: Option<String>,
+        #[command(flatten)]
+        inbox: InboxArg,
         #[command(flatten)]
         poll: Poll,
         /// Give up after this long (e.g. 90, 30s, 5m)
@@ -124,7 +141,8 @@ enum Cmd {
     },
     /// Print new messages as they arrive, until interrupted
     Watch {
-        inbox: Option<String>,
+        #[command(flatten)]
+        inbox: InboxArg,
         #[command(flatten)]
         poll: Poll,
     },
@@ -150,6 +168,23 @@ struct Target {
     inbox: Option<String>,
 }
 
+/// An inbox given either as a positional argument or with `-i/--inbox`, like the message commands take it.
+#[derive(Args)]
+struct InboxArg {
+    /// Inbox [default: the current inbox]
+    #[arg(value_name = "INBOX", conflicts_with = "inbox")]
+    positional: Option<String>,
+    /// Same as the INBOX argument
+    #[arg(short, long)]
+    inbox: Option<String>,
+}
+
+impl InboxArg {
+    fn resolve(&self) -> Result<String> {
+        state::resolve_inbox(self.inbox.as_deref().or(self.positional.as_deref()))
+    }
+}
+
 #[derive(Args)]
 struct Poll {
     /// Polling interval
@@ -161,7 +196,15 @@ fn main() -> ExitCode {
     // Answers shell completion requests (COMPLETE=<shell>) and exits; otherwise a no-op.
     CompleteEnv::with_factory(Cli::command).complete();
 
-    let cli = Cli::parse();
+    // Invalid arguments exit with 64 (EX_USAGE) instead of clap's 2, which means a `wait` timeout.
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(e) if e.use_stderr() => {
+            let _ = e.print();
+            return ExitCode::from(64);
+        }
+        Err(e) => e.exit(),
+    };
     match run(cli) {
         Ok(code) => code,
         Err(e) => {
@@ -229,7 +272,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             print_inbox(&inbox, json);
         }
         Cmd::Ls { inbox } => {
-            let inbox = state::resolve_inbox(inbox.as_deref())?;
+            let inbox = inbox.resolve()?;
             let rows = client()?.list(&inbox)?;
             if json {
                 print_json(&rows)?;
@@ -295,7 +338,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             code,
             link,
         } => {
-            let inbox = state::resolve_inbox(inbox.as_deref())?;
+            let inbox = inbox.resolve()?;
             let client = client()?;
             let filter = |m: &Summary| {
                 from.as_ref()
@@ -341,7 +384,7 @@ fn run(cli: Cli) -> Result<ExitCode> {
             }
         }
         Cmd::Watch { inbox, poll } => {
-            let inbox = state::resolve_inbox(inbox.as_deref())?;
+            let inbox = inbox.resolve()?;
             let client = client()?;
             let mut seen: HashSet<String> =
                 client.list(&inbox)?.into_iter().map(|m| m.id).collect();

@@ -28,7 +28,7 @@ impl Client {
     pub fn new(base: &str) -> Result<Self> {
         let http = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent(concat!("pn/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("pnmail/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("failed to build HTTP client")?;
         Ok(Self {

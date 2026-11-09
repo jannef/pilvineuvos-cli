@@ -51,7 +51,7 @@ pub fn resolve_inbox(arg: Option<&str>) -> Result<String> {
     match load_current() {
         Some(c) => Ok(c),
         None => bail!(
-            "no inbox given; pass one, set PILVINEUVOS_INBOX, or run `pn new` / `pn use <inbox>`"
+            "no inbox given; pass one, set PILVINEUVOS_INBOX, or run `pnmail new` / `pnmail use <inbox>`"
         ),
     }
 }

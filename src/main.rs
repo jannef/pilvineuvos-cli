@@ -22,10 +22,10 @@ use message::Parsed;
 
 #[derive(Parser)]
 #[command(
-    name = "pn",
+    name = "pnmail",
     version,
     about = "Throwaway inboxes at <name>@pilvineuvos.com",
-    after_help = "Messages are kept for ~23-24 hours.\n\nExamples:\n  pn new                  create a random inbox and make it current\n  pn wait --code          block until mail arrives, print the one-time code\n  pn ls                   list messages in the current inbox\n  pn read                 show the newest message"
+    after_help = "Messages are kept for ~23-24 hours.\n\nExamples:\n  pnmail new              create a random inbox and make it current\n  pnmail wait --code      block until mail arrives, print the one-time code\n  pnmail ls               list messages in the current inbox\n  pnmail read             show the newest message"
 )]
 struct Cli {
     /// API base URL

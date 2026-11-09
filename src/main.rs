@@ -13,7 +13,9 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow, bail};
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap_complete::CompleteEnv;
+use clap_complete::engine::{ArgValueCandidates, CompletionCandidate};
 use regex::Regex;
 use serde_json::json;
 
@@ -141,6 +143,7 @@ enum Cmd {
 #[derive(Args)]
 struct Target {
     /// Message ID [default: newest message in the inbox]
+    #[arg(add = ArgValueCandidates::new(message_id_candidates))]
     id: Option<String>,
     /// Inbox to take the newest message from
     #[arg(short, long)]
@@ -155,6 +158,9 @@ struct Poll {
 }
 
 fn main() -> ExitCode {
+    // Answers shell completion requests (COMPLETE=<shell>) and exits; otherwise a no-op.
+    CompleteEnv::with_factory(Cli::command).complete();
+
     let cli = Cli::parse();
     match run(cli) {
         Ok(code) => code,
@@ -393,6 +399,37 @@ fn run(cli: Cli) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// Message IDs in the current inbox for shell completion, newest first, with
+/// subject and age as the description. Returns nothing on any error so a
+/// missing key or network problem never breaks the shell.
+fn message_id_candidates() -> Vec<CompletionCandidate> {
+    let Ok(inbox) = state::resolve_inbox(None) else {
+        return Vec::new();
+    };
+    let base = std::env::var("PILVINEUVOS_API").unwrap_or_else(|_| api::DEFAULT_API.to_string());
+    let key = std::env::var("PILVINEUVOS_API_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty())
+        .or_else(state::load_api_key);
+    let Ok(client) = Client::with_timeout(&base, key, Duration::from_secs(1)) else {
+        return Vec::new();
+    };
+    client
+        .list(&inbox)
+        .unwrap_or_default()
+        .into_iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let subject = render::truncate(m.subject.as_deref().unwrap_or("(no subject)"), 50);
+            CompletionCandidate::new(m.id)
+                .help(Some(
+                    format!("{subject}, {}", render::age(m.received_at)).into(),
+                ))
+                .display_order(Some(i))
+        })
+        .collect()
+}
+
 /// Explicit ID, or the newest message in the resolved inbox.
 fn resolve_target(client: &Client, t: &Target) -> Result<(String, Option<i64>)> {
     if let Some(id) = &t.id {
@@ -598,7 +635,6 @@ mod tests {
 
     #[test]
     fn cli_is_valid() {
-        use clap::CommandFactory;
         Cli::command().debug_assert();
     }
 }

@@ -18,6 +18,23 @@ pnmail login                # paste the key; it is checked against the API befor
 pnmail logout               # forget it
 ```
 
+## Shell completion
+
+Tab completes commands, options and **message IDs from your current inbox**
+(fish and zsh show each message's subject and age next to its ID):
+
+```sh
+# fish
+echo 'COMPLETE=fish pnmail | source' > ~/.config/fish/completions/pnmail.fish
+# zsh (~/.zshrc)
+source <(COMPLETE=zsh pnmail)
+# bash (~/.bashrc)
+source <(COMPLETE=bash pnmail)
+```
+
+ID completion uses the current inbox (`pnmail use` / `PILVINEUVOS_INBOX`) and your saved API key.
+If the API can't be reached within a second, only commands and options are completed.
+
 ## Usage
 
 ```sh

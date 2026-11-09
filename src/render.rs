@@ -75,7 +75,7 @@ pub fn expiry(received_at: i64) -> String {
     if urgent { red(&text) } else { text }
 }
 
-fn truncate(s: &str, max: usize) -> String {
+pub fn truncate(s: &str, max: usize) -> String {
     let s: String = s
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })

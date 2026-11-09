@@ -39,8 +39,12 @@ pub struct Client {
 
 impl Client {
     pub fn new(base: &str, api_key: Option<String>) -> Result<Self> {
+        Self::with_timeout(base, api_key, Duration::from_secs(30))
+    }
+
+    pub fn with_timeout(base: &str, api_key: Option<String>, timeout: Duration) -> Result<Self> {
         let http = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(timeout)
             .user_agent(concat!("pnmail/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("failed to build HTTP client")?;

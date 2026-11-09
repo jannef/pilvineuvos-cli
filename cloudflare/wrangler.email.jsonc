@@ -1,0 +1,23 @@
+// Email Routing worker: stores incoming mail in R2 and indexes it in D1.
+// The catch-all routing rule that sends mail here is set up by hand (see README).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "email-processor",
+  "main": "email-worker.js",
+  "compatibility_date": "2025-06-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  // Keep variables set in the dashboard (e.g. MAX_MESSAGE_BYTES) instead of deleting them on deploy.
+  "keep_vars": true,
+  "d1_databases": [
+    {
+      "binding": "D1_INDEX",
+      "database_name": "pilvineuvos-index",
+      "database_id": "e8f8f094-2fbb-4549-b9b7-479c23464119",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "R2_BUCKET", "bucket_name": "pilvineuvos-messages", "jurisdiction": "eu" }
+  ],
+}

@@ -1,0 +1,14 @@
+{
+  "name": "pilvineuvos-cloudflare",
+  "private": true,
+  "scripts": {
+    "deploy": "npm run migrate && npm run deploy:email && npm run deploy:api && npm run deploy:purge",
+    "deploy:email": "wrangler deploy -c wrangler.email.jsonc",
+    "deploy:api": "wrangler deploy -c wrangler.api.jsonc",
+    "deploy:purge": "wrangler deploy -c wrangler.purge.jsonc",
+    "migrate": "wrangler d1 migrations apply pilvineuvos-index --remote -c wrangler.api.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "4.159.0"
+  }
+}

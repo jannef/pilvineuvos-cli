@@ -95,7 +95,9 @@ pub fn html_to_text(html: &str) -> String {
 
 fn format_mailbox(name: Option<&str>, addr: Option<&str>) -> Option<String> {
     match (name, addr) {
-        (Some(n), Some(a)) if !n.is_empty() => Some(format!("{n} <{a}>")),
+        (Some(n), Some(a)) if !n.is_empty() && !n.eq_ignore_ascii_case(a) => {
+            Some(format!("{n} <{a}>"))
+        }
         (_, Some(a)) => Some(a.to_string()),
         (Some(n), None) => Some(n.to_string()),
         (None, None) => None,

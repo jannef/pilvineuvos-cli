@@ -18,6 +18,17 @@ Flow: mail to `<inbox>@pilvineuvos.com` → `email-worker.js` → R2 + D1 → re
 
 Index rows older than 23h are purged hourly; the API additionally hides anything older than 24h.
 
+## Ingress limits
+
+`email-worker.js` bounces mail back to the sender (SMTP reject) when:
+
+- the whole message is larger than **10 MiB** — override with a `MAX_MESSAGE_BYTES` Worker
+  variable (in bytes); Email Routing's own ceiling is 25 MiB
+- the recipient name (before `@`) is longer than 64 characters (RFC 5321)
+
+Oversized mail is rejected before its body is read. Stored index fields are capped: subject at
+998 characters, sender at 320.
+
 ## API keys
 
 Both API endpoints require `Authorization: Bearer <key>`, where `<key>` is a row in `api_keys`

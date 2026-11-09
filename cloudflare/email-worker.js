@@ -1,6 +1,6 @@
 // Default cap on a whole message (headers, body and attachments). Override with
 // the MAX_MESSAGE_BYTES Worker variable. Email Routing itself stops at 25 MiB.
-const DEFAULT_MAX_MESSAGE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MAX_MESSAGE_BYTES = 10_000_000;
 
 // RFC 5321 local-part limit; longer recipients are rejected.
 const MAX_INBOX_LENGTH = 64;
@@ -16,9 +16,10 @@ function maxMessageBytes(env) {
     : DEFAULT_MAX_MESSAGE_BYTES;
 }
 
-// Rounds up to 0.1 MiB so a message just over the limit never reads as equal to it.
-function formatBytes(bytes) {
-  return `${Math.ceil((bytes / (1024 * 1024)) * 10) / 10} MiB`;
+// Decimal MB to one decimal place. Message sizes round up and the limit rounds
+// down, so a message just over the limit never reads as equal to it.
+function formatMegabytes(bytes, round) {
+  return `${round((bytes / 1_000_000) * 10) / 10} MB`;
 }
 
 export default {
@@ -33,7 +34,8 @@ export default {
     if (message.rawSize > maxBytes) {
       console.log(`Rejected ${message.rawSize} byte message to ${message.to}.`);
       message.setReject(
-        `Message too large (${formatBytes(message.rawSize)}); the limit is ${formatBytes(maxBytes)}.`,
+        `Message too large (${formatMegabytes(message.rawSize, Math.ceil)}); ` +
+          `the limit is ${formatMegabytes(maxBytes, Math.floor)}.`,
       );
       return;
     }

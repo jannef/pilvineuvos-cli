@@ -22,8 +22,8 @@ Index rows older than 23h are purged hourly; the API additionally hides anything
 
 `email-worker.js` bounces mail back to the sender (SMTP reject) when:
 
-- the whole message is larger than **10 MiB** — override with a `MAX_MESSAGE_BYTES` Worker
-  variable (in bytes); Email Routing's own ceiling is 25 MiB
+- the whole message is larger than **10 MB** (10,000,000 bytes) — override with a
+  `MAX_MESSAGE_BYTES` Worker variable (in bytes); Email Routing's own ceiling is 25 MiB
 - the recipient name (before `@`) is longer than 64 characters (RFC 5321)
 
 Oversized mail is rejected before its body is read. Stored index fields are capped: subject at
